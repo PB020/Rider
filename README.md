@@ -18,12 +18,11 @@ $ pip3 install -r requirements.txt
 
 ## Usage
 ```
-usage: rider.py [-h] filename
+usage: Rider.py [-h] filename
 ```
 ### Example
 
-```
-python3 rider.py sample_links.txt
+``` Rider.py sample_links.txt
 ```
 
 ## License
