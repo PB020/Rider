@@ -1,0 +1,4 @@
+# Web Scraping
+requests
+bs4
+lxml
