@@ -1,20 +1,24 @@
+# CLI Arguments
 import argparse
 
-import concurrent.futures
-import time
-
+# Web Scraping
 import requests
 from bs4 import BeautifulSoup, SoupStrainer
 
+# Multi-Threading
+import concurrent.futures
+import time
+
 PRODUCTS = []
 DETAILS = []
-MAX_THREADS = 60
+PARSED = []
+MAX_THREADS = 30
 
+# Rider initializer
 def init():
-    init_output = open("Rider Output.csv", "w+", encoding = "utf-8")
-    init_output.write("Product,Condition,Price\n")
-    init_output.close()
+    print("Initializing Rider")
 
+    print("    Parsing Input File")
     parser = argparse.ArgumentParser(description="Parses Tens of Thousands of eBay Links")
     parser.add_argument('file', action="store", help="File containing eBay links")
     args = parser.parse_args()
@@ -25,27 +29,54 @@ def init():
             if len(link) > 25:
                 PRODUCTS.append(link.strip())
 
-def scrape():
+    print("    Creating Output File")
+    init_output = open("Rider Output.csv", "w+", encoding = "utf-8")
+    init_output.write("Product,Condition,Price\n")
+    init_output.close()
+
+    print("Finished Initialization")
+    print("\n--- --- ---\n")
+
+# "Brain" of the script, initializes multi-threading
+def rider():
+    print("Starting Rider")
+
     threads = min(MAX_THREADS, len(PRODUCTS))
-
-    print("Starting eBay Scrape")
     
+    print(f"    Starting Download:\n      {len(PRODUCTS)} Product Links on {threads} threads\n")
     with concurrent.futures.ThreadPoolExecutor(max_workers = threads) as executor:
-        executor.map(scrape_url, PRODUCTS)
+        executor.map(download, PRODUCTS)
+    print("    Finished Download")
 
-    for detail in DETAILS:
-        with open("Rider Output.csv", "a+", encoding = "utf-8") as save:
-            save.write(detail)
+    print(f"\n    Starting Parsing")
+    with concurrent.futures.ThreadPoolExecutor(max_workers = threads) as executor:
+        executor.map(parse, DETAILS)
+    print("    Finished Parsing")
 
-    print("Finished eBay Scrape")
+    print(f"\n    Writing Data")
+    with open("Rider Output.csv", "a+", encoding = "utf-8") as save:
+        for data in PARSED:
+            save.write(data)
+    print("    Finished Writing")
 
-def scrape_url(product):
+    print("Rider Complete")
+
+# Downloads product urls
+def download(product):
     global DETAILS
-    session = requests.Session()
-    response = session.get(product)
+    request = requests.get(product)
 
+    DETAILS.append(request.content)
+    
+    # Sleep so I don't overwhelm eBay's servers
+    # Further implementation should include IP 
+    time.sleep(0.25)
+
+# Parses downloaded details
+def parse(detail):
+    global PARSED
     strainer = SoupStrainer(["div", "h1", "span"])
-    soup = BeautifulSoup(response.content, "lxml", parse_only = strainer)
+    soup = BeautifulSoup(detail, "lxml", parse_only = strainer)
 
     product_name = soup.find(id = "itemTitle").text[16:]
     if "," in product_name:
@@ -65,15 +96,14 @@ def scrape_url(product):
         if "," in product_price:
             product_price = product_price.replace(',', '')
 
-    DETAILS.append(f"{product_name},{product_condition},{product_price}\n")
+    PARSED.append(f"{product_name},{product_condition},{product_price}\n")
 
-    print(f"\tSaved Details For {product_name}")
-    return
+    print(f"\Parsed Details For {product_name}")
 
 def main():
     init()
     t0 = time.time()
-    scrape()
+    rider()
     t1 = time.time()
     print(f"\nSaved Details for {len(PRODUCTS)} Products in {t1-t0} Seconds")
 
